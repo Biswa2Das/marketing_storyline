@@ -1,0 +1,23 @@
+marketing-storyline-generator/
+├── app/
+│ ├── init.py
+│ ├── main.py # FastAPI application
+│ ├── schemas.py # Pydantic models
+│ ├── llm_client.py # LLM API client
+│ ├── feature_extractor.py # Feature extraction logic
+│ ├── story_generator.py # Storyline generation logic
+│ ├── prompt_templates.py # LLM prompt templates
+│ └── config.py # Configuration management
+├── tests/
+│ ├── test_main.py # API endpoint tests
+│ ├── test_feature_extractor.py
+│ ├── test_story_generator.py
+│ └── test_llm_client.py
+├── tools/
+│ └── generate.py # CLI tool
+├── static/
+│ └── index.html # Web interface
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+└── README.md
