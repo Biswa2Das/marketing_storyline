@@ -1,94 +1,96 @@
-# description.py
 import json
-import logging
-from typing import Dict, Any, List, Optional
-
-from huggingface_hub import InferenceClient
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+from typing import Dict, Any, List
+from groq import Groq
 
 def build_default_schema() -> Dict[str, Any]:
-    # JSON Schema for strict scene outputs (name/strict per HF structured outputs) [web:191]
+    # Example JSON schema for scenes; adjust to your exact structure
     return {
-        "name": "Scenes",
-        "schema": {
-            "type": "object",
-            "properties": {
-                "scenes": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "scene": {"type": "integer"},
-                            "visuals": {"type": "string"},
-                            "camera": {"type": "string"},
-                            "on_screen_text": {"type": "string"},
-                            "sound": {"type": "string"},
-                        },
-                        "required": ["scene", "visuals", "camera", "on_screen_text", "sound"],
+        "type": "object",
+        "properties": {
+            "scenes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "title": {"type": "string"},
+                        "shot_type": {"type": "string"},
+                        "visuals": {"type": "string"},
+                        "voiceover": {"type": "string"},
+                        "on_screen_text": {"type": "string"},
+                        "duration_sec": {"type": "number"},
+                        "cta": {"type": "string"},
                     },
-                }
-            },
-            "required": ["scenes"],
-            "additionalProperties": False,
+                    "required": ["id", "title", "visuals", "voiceover", "duration_sec"],
+                },
+            }
         },
-        "strict": True,
+        "required": ["scenes"],
     }
 
 class SceneGenerator:
-    def __init__(self, hf_token: str, model: str = "meta-llama/Llama-3.1-8B-Instruct", temperature: float = 0.7):
-        self.client = InferenceClient(provider="auto", api_key=hf_token)  # Providers/Endpoints supported [web:195]
+    def __init__(self, groq_api_key: str, model: str = "llama-3.3-70b-versatile", temperature: float = 0.7):
+        self.client = Groq(api_key=groq_api_key)
         self.model = model
         self.temperature = temperature
-        logging.info(f"✅ Using HF model: {self.model}")
 
-    def _build_prompt(self, storyline: Dict[str, Any], num_scenes: int, video_length: str) -> str:
-        tagline = storyline.get("tagline") or storyline.get("headline") or ""
-        narrative = storyline.get("narrative") or storyline.get("story") or ""
-        storyline_view = {"tagline": tagline, "narrative": narrative}
-        story_txt = json.dumps(storyline_view, ensure_ascii=False, indent=2)
-        return f"""
-Here is the marketing storyline (tagline + narrative):
-{story_txt}
+    def _build_scene_prompt(
+        self,
+        storyline: Dict[str, str],
+        num_scenes: int,
+        video_length: str,
+        json_schema: Dict[str, Any],
+    ) -> str:
+        schema_str = json.dumps(json_schema, indent=2)
+        return f"""You are a marketing director and storyboard artist.
 
-Generate exactly {num_scenes} scene descriptions for a {video_length} commercial.
+Create a scene breakdown for a {video_length} vertical ad based on the following storyline.
+Return a STRICT JSON object that validates against the provided JSON Schema. Do not include any text outside JSON.
 
-Rules:
-- Return ONLY a valid JSON object conforming to the provided JSON Schema.
-- No commentary, no markdown, no backticks.
+Storyline:
+Tagline: {storyline.get("tagline","")}
+Narrative: {storyline.get("narrative","")}
+
+Requirements:
+- Exactly {num_scenes} scenes.
+- Each scene should include: id, title, shot_type, visuals, voiceover, on_screen_text, duration_sec, cta (if applicable).
+- Total time budget should roughly match the {video_length}.
+- Keep language concise and production-ready.
+
+JSON Schema:
+{schema_str}
 """
 
     def generate_scenes(
         self,
-        storyline: Dict[str, Any],
-        num_scenes: int = 3,
-        video_length: str = "15-second",
-        json_schema: Optional[Dict[str, Any]] = None,
-    ) -> Optional[List[Dict[str, Any]]]:
-        system_prompt = "You are a creative director. Respond ONLY with JSON matching the schema."  # [web:191]
-        user_prompt = self._build_prompt(storyline, num_scenes, video_length)
+        storyline: Dict[str, str],
+        num_scenes: int,
+        video_length: str,
+        json_schema: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        prompt = self._build_scene_prompt(storyline, num_scenes, video_length, json_schema)
 
-        # Default schema if none provided
-        schema = json_schema or build_default_schema()
-
+        # Use JSON-style prompting. If desired, you can add a JSON mode hint in the system message.
+        messages = [
+            {"role": "system", "content": "Return only a valid JSON object that conforms to the schema. No extra text."},
+            {"role": "user", "content": prompt},
+        ]
         try:
             resp = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+                messages=messages,
                 temperature=self.temperature,
-                response_format={"type": "json_schema", "json_schema": schema},  # strict JSON via HF [web:191]
             )
             text = resp.choices[0].message.content or ""
+            # Best-effort JSON extraction/parsing
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                text = text[start:end+1]
             data = json.loads(text)
-
-            if isinstance(data, dict) and isinstance(data.get("scenes"), list):
-                logging.info(f"✅ Generated {len(data['scenes'])} scenes.")
-                return data["scenes"]
-            logging.warning("⚠ Output did not match {'scenes':[...]} shape.")
-            return None
+            scenes = data.get("scenes", [])
+            return scenes
         except Exception as e:
-            logging.error(f"❌ HF structured output error: {e}")
-            return None
+            # Optionally log e
+            return []
+
