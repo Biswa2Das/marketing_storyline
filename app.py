@@ -1,7 +1,7 @@
 import os
 import streamlit as st
-from marketing_generator_groq import generate_storyline
-from description_groq import SceneGenerator, build_default_schema
+from marketing_generator import generate_storyline
+from description import SceneGenerator, build_default_schema
 
 st.set_page_config(page_title="Marketing Prompt → Scene Builder", page_icon="🎬", layout="wide")
 
@@ -14,7 +14,7 @@ def _get_secret(key: str, default: str = "") -> str:
     except FileNotFoundError:
         return default
 
-GROQ_API_KEY = _get_secret("GROQ_API_KEY") or os.environ.get("GROQ_API_KEY", "")
+GROQ_API_KEY = _get_secret("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") or os.environ.get("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", "")
 if not GROQ_API_KEY:
     st.warning("Missing GROQ_API_KEY in secrets or environment. Set .streamlit/secrets.toml or export GROQ_API_KEY.", icon="⚠️")  # [web:72][web:21]
 
@@ -104,4 +104,5 @@ if st.session_state.storyline:
 if st.session_state.scenes:
     st.subheader("Scene Descriptions")
     st.json({"scenes": st.session_state.scenes})
+
 
