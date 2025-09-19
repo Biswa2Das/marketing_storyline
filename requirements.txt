@@ -1,0 +1,6 @@
+streamlit>=1.33,<1.39
+huggingface_hub>=0.23,<1.0
+requests>=2.31,<3.0
+python-dotenv>=1.0,<2.0     # load HF_TOKEN from a .env file on a VM or local dev
+pydantic>=2.5,<3.0          # if doing schema validation locally before display
+tenacity>=8.2,<9.0          # if adding retry logic around inference calls
