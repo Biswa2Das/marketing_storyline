@@ -1,9 +1,6 @@
-# marketing_generator.py
-import json
 from typing import Dict, Any
-from huggingface_hub import InferenceClient
+from groq import Groq
 
-# Generate a structured storyline (tagline + narrative) using a chat prompt template. [web:195]
 def _build_prompt(product_input: str) -> str:
     return f"""You are a creative marketing expert. Based on the following product details, create:
 
@@ -17,13 +14,12 @@ TAGLINE: <tagline>
 NARRATIVE: <narrative>
 """
 
-def generate_storyline(product_input: str, hf_token: str, model: str = "meta-llama/Llama-3.1-8B-Instruct") -> Dict[str, Any]:
-    client = InferenceClient(provider="auto", api_key=hf_token)  # HF Inference Providers [web:195]
-    prompt = _build_prompt(product_input)
+def generate_storyline(product_input: str, groq_api_key: str, model: str = "llama-3.3-70b-versatile") -> Dict[str, Any]:
+    client = Groq(api_key=groq_api_key)  # GROQ_API_KEY from env or secrets
 
     messages = [
         {"role": "system", "content": "Return only the requested sections."},
-        {"role": "user", "content": prompt},
+        {"role": "user", "content": _build_prompt(product_input)},
     ]
 
     try:
@@ -31,16 +27,16 @@ def generate_storyline(product_input: str, hf_token: str, model: str = "meta-lla
             model=model,
             messages=messages,
             temperature=0.7,
-        )  # standard chat completion; formatting enforced via prompt [web:195]
+        )  # OpenAI-compatible chat completions on Groq
         text = resp.choices[0].message.content or ""
 
         tagline, narrative = "", ""
         for line in text.splitlines():
-            line = line.strip()
-            if line.startswith("TAGLINE:"):
-                tagline = line[len("TAGLINE:"):].strip()
-            elif line.startswith("NARRATIVE:"):
-                narrative = line[len("NARRATIVE:"):].strip()
+            s = line.strip()
+            if s.startswith("TAGLINE:"):
+                tagline = s[len("TAGLINE:"):].strip()
+            elif s.startswith("NARRATIVE:"):
+                narrative = s[len("NARRATIVE:"):].strip()
 
         # Fallback parsing
         if not tagline or not narrative:
@@ -64,4 +60,5 @@ def generate_storyline(product_input: str, hf_token: str, model: str = "meta-lla
 
         return {"success": True, "tagline": tagline, "narrative": narrative, "model": model}
     except Exception as e:
-        return {"success": False, "error": f"HF Inference error: {e}"}
+        return {"success": False, "error": f"Groq chat error: {e}"}
+
