@@ -15,7 +15,7 @@ NARRATIVE: <narrative>
 """
 
 def generate_storyline(product_input: str, groq_api_key: str, model: str = "llama-3.3-70b-versatile") -> Dict[str, Any]:
-    client = Groq(api_key=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)  # GROQ_API_KEY from env or secrets
+    client = Groq(api_key=groq_api_key)  # GROQ_API_KEY from env or secrets
 
     messages = [
         {"role": "system", "content": "Return only the requested sections."},
@@ -61,5 +61,6 @@ def generate_storyline(product_input: str, groq_api_key: str, model: str = "llam
         return {"success": True, "tagline": tagline, "narrative": narrative, "model": model}
     except Exception as e:
         return {"success": False, "error": f"Groq chat error: {e}"}
+
 
 
